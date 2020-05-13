@@ -1,2 +1,3 @@
-# ECS-meta-lua
-reflection with entt, sol, lua
+# Reflection with entt, sol, lua
+* [entt](https://github.com/skypjack/entt)
+* [sol](https://github.com/ThePhD/sol2)
