@@ -4,22 +4,30 @@
 #include "sol.hpp"
 
 template<typename T>
-void Get(entt::registry* ecs, entt::entity entity, sol::state* lua)
+T& Get(entt::registry* ecs, entt::entity entity, sol::state* lua)
 {
-    (*lua)["Get"].get_or_create<sol::table>()[entt::type_info<T>::id()] = ecs->template try_get<T>(entity);
+	T& instance = registry.get_or_emplace<Type>(entity);
+    (*lua)["Get"].get_or_create<sol::table>()[entt::type_info<T>::id()] = &instance;
+	return instance;
+}
+
+template<typename T>
+T& Set(entt::registry* ecs, entt::entity entity, const Type &instance)
+{
+   return ecs.emplace_or_replace<T>(entity, instance);
 }
 template<typename T>
 void extend_meta_type() {
     entt::meta<T>()
-        .type(entt::type_info<T>::id())
-        .func<&Get<T>>("get"_hs);
+        .template func<&Get<T>, entt::as_ref_t>("Get"_hs)
+        .template func<&Set<T>>("Set"_hs);
 }
 void GetComponent(entt::registry* ecs, sol::state* lua, entt::entity entity, sol::variadic_args component)
 {
     for (auto id : component)
     {
-        if (auto meta_any = entt::resolve_type(id.as<entt::id_type>()); meta_any)
-            meta_any.func("get"_hs).invoke({}, ecs, entity, lua);
+        if (auto type = entt::resolve_type(id.as<entt::id_type>()); type)
+			type.func("get"_hs).invoke({}, std::ref(ecs), entity, lua);
     }
     
 }
@@ -35,6 +43,8 @@ struct texture { int value; };
 struct MagicSkill { int value; };
 int main()
 {
+	entt::meta<transform>().type("transform"_hs);
+	entt::meta<texture>().type("texture"_hs);
     entt::registry ecs;
     sol::state lua;
     lua.open_libraries();
@@ -57,7 +67,13 @@ int main()
     ecs.emplace<transform>(entity, 1);
     ecs.emplace<texture>(entity, 2);
     lua["entity"] = entity;
-    
+	/*
+    registry.visit(entity, [&](const auto component) {
+        const auto type = entt::resolve_type(component);
+        const auto any = type.func("get"_hs).invoke({}, std::ref(registry), entity);
+        type.func("set"_hs).invoke({}, std::ref(registry), other, any);
+    });
+	*/
     auto meta_Resolve = entt::resolve<transform>();
     auto meta_Resolve_Type = entt::resolve_type(entt::type_info<transform>::id());
     auto resolveID = meta_Resolve.type_id();
